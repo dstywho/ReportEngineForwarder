@@ -122,6 +122,7 @@ public class Server {
 				try {
 					reportEngine.initClient(request.queryParams("name"));
 				} catch (Exception e) {
+					e.printStackTrace();
 				}
 			}
 		});
