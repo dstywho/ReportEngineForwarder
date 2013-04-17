@@ -93,7 +93,14 @@ public class Server {
 	}
 
 	public static void main(String[] args) {
+		
 		final RemoteAPI reportEngine = new RemoteAPI();
+		
+		if(args[0] != null){
+			Integer.parseInt(args[0]);
+		}else{			
+			Spark.setPort(27514);
+		}
 
 		Spark.get(new Route("/report/create") {
 			@Override
