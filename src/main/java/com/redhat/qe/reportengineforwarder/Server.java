@@ -1,5 +1,8 @@
 package com.redhat.qe.reportengineforwarder;
 
+import java.io.PrintWriter;
+import java.io.StringWriter;
+
 import spark.Request;
 import spark.Response;
 import spark.Route;
@@ -11,13 +14,19 @@ public class Server {
 	public static class ResponseWrapper {
 
 		private Response response;
+		private int code;
+		private String body;
 
 		/**
 		 * @param response
 		 */
-		public ResponseWrapper(Response response) {
+		public ResponseWrapper(Response response, int code, String body) {
 			super();
+			this.code = code;
+			this.body = body;
 			this.response = response;
+			this.response.status(code);
+			this.response.body("body");
 		}
 
 		/**
@@ -36,7 +45,7 @@ public class Server {
 		}
 
 		public String toString() {
-			return String.format("%s", response.body());
+			return String.format("%s: %s",code, body);
 		}
 	}
 
@@ -56,9 +65,7 @@ public class Server {
 			if (api.isClientConfigurationSuccess()) {
 				return runApiHandle(request, response);
 			} else {
-				response.status(400);
-				response.body("api is not connected");
-				return new ResponseWrapper(response);
+				return new ResponseWrapper(response, 500, "api is not connected");
 			}
 		}
 
@@ -70,9 +77,9 @@ public class Server {
 			try {
 				return handleApi(request, response);
 			} catch (Exception e) {
-				response.status(400);
-				response.body(e.getMessage());
-				return new ResponseWrapper(response);
+				StringWriter errors = new StringWriter();
+				e.printStackTrace(new PrintWriter(errors));
+				return new ResponseWrapper(response,500, errors.toString());
 			}
 		}
 
@@ -80,23 +87,18 @@ public class Server {
 
 	private static String getNameParam(Request request, Response response) {
 		String name = request.queryParams("name");
-		if (name == null && name.isEmpty()) {
+		if (name == null || name.isEmpty()) {
 			throw new RuntimeException("name param not given");
 		}
 		return name;
 	}
 
-	private static Response sucessResponse(Response response) {
-		response.status(200);
-		response.body("OK");
-		return response;
-	}
 
 	public static void main(String[] args) {
 		
 		final RemoteAPI reportEngine = new RemoteAPI();
 		
-		if(args[0] != null){
+		if(args.length > 0){
 			Integer.parseInt(args[0]);
 		}else{			
 			Spark.setPort(27514);
@@ -107,13 +109,13 @@ public class Server {
 			public Object handle(Request request, Response response) {
 
 				startReport(reportEngine, request, response);
-				if (reportEngine.isClientConfigurationSuccess())
-					response.status(200);
-				else {
-					response.status(400);
-					response.body("report could not be created");
+				if (reportEngine.isClientConfigurationSuccess()){
+					return new ResponseWrapper(response, 200, "report started");
+				}else {
+					return new ResponseWrapper(response, 500, "report could not be created");
 				}
-				return new ResponseWrapper(response);
+				
+				
 			}
 
 			private void startReport(final RemoteAPI reportEngine, Request request, Response response) {
@@ -124,13 +126,28 @@ public class Server {
 			}
 		});
 
+		Spark.get(new ActiveReportRoute("/testgroup/create", reportEngine) {
+
+			@Override
+			public Object handleApi(Request request, Response response) throws Exception {
+				return createTestGroup(reportEngine, response);
+			}
+			
+			private ResponseWrapper createTestGroup(final RemoteAPI reportEngine, Response response) {
+				try {
+					reportEngine.insertTestGroup("tests");
+				} catch (Exception e) {
+					return new ResponseWrapper(response, 500, "test group not be created");
+				}
+				return new ResponseWrapper(response, 500, "test group created");
+			}
+		});
 		Spark.get(new ActiveReportRoute("/report/finish", reportEngine) {
 
 			@Override
 			public Object handleApi(Request request, Response response) throws Exception {
 				reportEngine.updateTestSuite("Completed", "TODO buildverison empty");
-				response.body("report finished");
-				return new ResponseWrapper(response);
+				return new ResponseWrapper(response, 200, "report completed");
 			}
 		});
 
@@ -140,7 +157,7 @@ public class Server {
 			public Object handleApi(Request request, Response response) throws Exception {
 				String name = getNameParam(request, response);
 				reportEngine.insertTestCase(name, "Running");
-				return new ResponseWrapper(sucessResponse(response));
+				return new ResponseWrapper(response, 200, "reporting that test case as running");
 			}
 
 		});
@@ -150,7 +167,7 @@ public class Server {
 			@Override
 			public Object handleApi(Request request, Response response) throws Exception {
 				reportEngine.updateTestCase("Passed");
-				return new ResponseWrapper(sucessResponse(response));
+				return new ResponseWrapper(response, 200, "OK");
 			}
 
 		});
@@ -159,7 +176,7 @@ public class Server {
 			@Override
 			public Object handleApi(Request request, Response response) throws Exception {
 				reportEngine.updateTestCase("Failed",request.queryParams("message"));
-				return new ResponseWrapper(sucessResponse(response));
+				return new ResponseWrapper(response, 200, "OK");
 			}
 
 		});
