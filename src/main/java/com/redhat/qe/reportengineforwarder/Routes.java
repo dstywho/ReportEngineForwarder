@@ -107,7 +107,7 @@ public class Routes {
 			} catch (Exception e) {
 				return new ResponseWrapper(response, 500, "test group not be created");
 			}
-			return new ResponseWrapper(response, 500, "test group created");
+			return new ResponseWrapper(response, 200, "test group created");
 		}
 	}
 
@@ -119,7 +119,7 @@ public class Routes {
 	
 		@Override
 		public Object handleApi(RemoteAPI api, Request request, Response response) throws Exception {
-			api().updateTestSuite("Completed", "TODO buildverison empty");
+			api().updateTestSuite("Completed", request.queryParams("build"));
 			return new ResponseWrapper(response, 200, "report completed");
 		}
 	
